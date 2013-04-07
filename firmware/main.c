@@ -12,6 +12,14 @@
 
 #define NUM_TLC5947 5
 
+uint8_t buffer[120];
+uint8_t buffer_position = 0;
+uint8_t i;
+
+volatile j = 0;
+volatile need_to_run = 0;
+
+
 inline void send_led(uint8_t a) {
     SPDR = a;
     // czekaj az sie wysle bufor
@@ -23,29 +31,37 @@ inline void commit() {
     PORTB &= ~(LATCH | BLANK);
 }
 
-volatile uint8_t buffer[120];
-
 void send_translate() {
     static uint8_t mode = 1, to_send = 0;
-
+    uint16_t tmp = 0;
+    
+    for (i = 0; i < 120; i++) {
+        tmp = translate(buffer[i]);
+        // wysylka prawych 8 bitow
+        if (mode) {
+            send_led((uint8_t) (tmp >> 4));
+            
+            to_send = ((tmp << 12) >> 8);
+        } else {
+            to_send |= tmp >> 8;
+            
+            send_led(to_send);
+            
+            send_led((tmp << 8) >> 8);
+        }
+        mode = !mode;
+    }
 }
 
 inline uint16_t translate(uint8_t a) {
     return (a * 4095) / 255;
 }
 
-
-
-uint8_t buffer_position = 0;
-uint8_t i;
-volatile uint8_t need_to_run;
-
-volatile uint8_t j;
-
 // Wcisniecie guziczka
 ISR(PCINT1_vect) {
     if (!(PINJ & (1<<PJ5))) {
         j++;
+        j%=3;
         need_to_run = 1;
     }
 }
@@ -60,7 +76,6 @@ ISR(USART3_RX_vect)
 
 int main(void)
 {
-    //sei();
 
     //UCSR3C =
 
@@ -94,7 +109,17 @@ int main(void)
         send_led(0);
     commit();
 
-
+    while (1) {
+        if (need_to_run) {
+            for (i = 0; i < 120; i++) {
+                buffer[i] = (i%3 == j) ? 255 : 0;
+            }
+        
+            commit();
+            need_to_run = 0;
+        }
+    }
+    
     //buffer = //malloc(180 * sizeof(uint16_t));
     /*
     uint8_t to_send = 0;
@@ -220,40 +245,7 @@ int main(void)
     }*/
 
 
-    j = 0;
-    volatile uint8_t mode = 1;
-    volatile uint8_t to_send = 0;
-    volatile uint16_t tmp;
-    need_to_run = 1;
-    while (1) {
-        if (need_to_run) {
-            for (i = 0; i < 120; i++) {
-                buffer[i] = (i%3 == j) ? 255 : 0;
-            }
 
-            for (i = 0; i < 120; i++) {
-                tmp = translate(buffer[i]);
-                // wysylka prawych 8 bitow
-                if (mode) {
-                    send_led((uint8_t) (tmp >> 4));
-
-                    to_send = ((tmp << 12) >> 8);
-                } else {
-                    to_send |= tmp >> 8;
-
-                    send_led(to_send);
-
-                    send_led((tmp << 8) >> 8);
-                }
-
-                mode = !mode;
-            }
-            commit();
-        //j++;
-            need_to_run = 0;
-            j %= 3;
-        }
-    }
 
     //uint8_t *mem = malloc(9000);
 
