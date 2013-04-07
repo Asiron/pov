@@ -11,14 +11,20 @@
 #define LATCH (1<<PB6)
 
 #define NUM_TLC5947 5
+#define NUM_DIODES_P_TLC 8
+#define UART_SELECT 3
 
-uint8_t buffer[120];
+#define _UCSRA UCSR ## UART_SELECT ## A
+#define _UDRE UDRE ## UART_SELECT
+#define _UDR UDR ## UART_SELECT
+
+#define DEBUG_MODE
+
+uint8_t buffer[NUM_DIODES_P_TLC*NUM_TLC5947*3];
 uint8_t buffer_position = 0;
-uint8_t i;
 
-volatile j = 0;
-volatile need_to_run = 0;
-
+volatile uint8_t color_pick = 0;
+volatile uint8_t need_to_run = 1;
 
 inline void send_led(uint8_t a) {
     SPDR = a;
@@ -28,12 +34,51 @@ inline void send_led(uint8_t a) {
 
 inline void commit() {
     PORTB |= LATCH | BLANK;
+    uint8_t k=1;
     PORTB &= ~(LATCH | BLANK);
 }
 
+inline uint16_t translate(uint8_t a) {
+    return (a * 4095) / 255;
+}
+
+void USART_Transmit(uint8_t data){
+    while ( !( UCSR3A & (1<<UDRE3)) );
+    UDR3 = data;
+}
+
+#ifdef DEBUG_MODE
+void send_debug_number(uint8_t num){
+    static char num_s[4];
+    itoa(num, num_s, 10);
+    uint8_t i;
+    for (i=0; i<strlen(num_s); ++i) {
+        USART_Transmit(num_s[i]);
+    }
+    USART_Transmit(' ');
+}
+
+void send_debug_buffer(uint8_t* buffer){
+    uint8_t i,j;
+    
+    USART_Transmit('\n');
+    USART_Transmit('\r');
+    USART_Transmit('\n');
+    USART_Transmit('\r');
+
+    for(i=0; i<120; i+=3){
+        send_debug_number(buffer[i]);
+        send_debug_number(buffer[i+1]);
+        send_debug_number(buffer[i+2]);
+        USART_Transmit('\n');
+        USART_Transmit('\r');
+    }
+}
+#endif
+
 void send_translate() {
     static uint8_t mode = 1, to_send = 0;
-    uint16_t tmp = 0;
+    uint16_t tmp = 0, i;
     
     for (i = 0; i < 120; i++) {
         tmp = translate(buffer[i]);
@@ -53,16 +98,12 @@ void send_translate() {
     }
 }
 
-inline uint16_t translate(uint8_t a) {
-    return (a * 4095) / 255;
-}
-
 // Wcisniecie guziczka
 ISR(PCINT1_vect) {
     if (!(PINJ & (1<<PJ5))) {
-        j++;
-        j%=3;
-        need_to_run = 1;
+        color_pick++;
+        color_pick%=3;
+        need_to_run = ( need_to_run == 1) ? 0 : 1;
     }
 }
 
@@ -79,7 +120,7 @@ int main(void)
 
     //UCSR3C =
 
-    UCSR3B = (1<<RXEN3) | (1<<TXEN3) | (1<<RXCIE3);// | (1<<TXCIE3); //0x18;      //reciever enable , transmitter enable
+    UCSR3B = (1<<RXEN3) | (1<<TXEN3);// | (1<<RXCIE3) | (1<<TXCIE3); //0x18;      //reciever enable , transmitter enable
     UBRR3H = 0;
     UBRR3L = 8;
 
@@ -104,7 +145,9 @@ int main(void)
     PCMSK1 |= (1<<PCINT14);
 
     sei();
-
+    
+    uint8_t i;
+    
     for (i = 0; i < 180; i++)
         send_led(0);
     commit();
@@ -112,11 +155,15 @@ int main(void)
     while (1) {
         if (need_to_run) {
             for (i = 0; i < 120; i++) {
-                buffer[i] = (i%3 == j) ? 255 : 0;
+                buffer[i] = (i%3 == color_pick) ? 255 : 0;
             }
-        
+            send_debug_buffer(buffer);
+            send_translate();
             commit();
-            need_to_run = 0;
+            //need_to_run = 0;
+            color_pick++;
+            color_pick %= 3;
+            _delay_ms(500);
         }
     }
     
@@ -178,7 +225,7 @@ int main(void)
     }
     */
     /*
-    j = 0;
+    color_pick = 0;
     while (1) {
         //for (i = 0; i < 180; i++)
         //    send_led(0b11111111);
@@ -213,11 +260,11 @@ int main(void)
     }*/
 
     /*while(1) {
-        j++;
-        j %= 40;
+        color_pick++;
+        color_pick %= 40;
 
         for (i = 0; i < 40; i++) {
-            buffer[i*3+2] = buffer[i*3+1] = buffer[i*3] = (i==j) ? 4095 : 0;
+            buffer[i*3+2] = buffer[i*3+1] = buffer[i*3] = (i==color_pick) ? 4095 : 0;
             //buffer[i*3+1] =
         }
 
