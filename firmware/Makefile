@@ -7,10 +7,10 @@ DEVICE     = atmega2560
 CLOCK      = 16000000ul
 PROGRAMMER = -c usbasp #stk500v2 -P /dev/tty.POVINF2011-SPP
 OBJECTS    = main.o
-FUSES      = -U lfuse:w:0xff:m -U hfuse:w:0xd4:m -U efuse:w:0xff:m
+FUSES      = -U lfuse:w:0xff:m -U hfuse:w:0x99:m -U efuse:w:0xff:m
 
 AVRDUDE = avrdude $(PROGRAMMER) -p $(DEVICE)
-COMPILE = avr-gcc -std=c99 -Wall -Os -DF_CPU=$(CLOCK) -mmcu=$(DEVICE)
+COMPILE = avr-gcc -std=c99 -Wall -Os -DF_CPU=$(CLOCK) -mmcu=$(DEVICE) 
 # -Wl,--defsym=__heap_start=0x801100,--defsym=__heap_end=0x8030ff
 
 # symbolic targets:
