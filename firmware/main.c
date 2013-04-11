@@ -41,9 +41,9 @@ inline uint16_t translate(uint8_t a) {
 }
 
 void send_debug_number_16bit( uint16_t num){
-    uint8_t i;
+    uint16_t i;
     char num_s[6];
-    itoa(num, num_s, 10);
+    ultoa(num, num_s, 10);
     for (i=0; i<strlen(num_s); ++i) {
         USART_Transmit(num_s[i]);
     }
@@ -284,7 +284,7 @@ int main(void)
     while (1) {
     
         _delay_ms(1000);
-        for (j=0; j<(56000\;p1`int1; ++j) {
+        for (j=0; j<(56000); ++j) {
             temp[j] = 46;
             send_debug_number_16bit(j);
             USART_Transmit(' ');
